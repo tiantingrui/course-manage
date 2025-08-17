@@ -1,0 +1,199 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  phone     String?  @unique
+  name      String
+  avatar    String?
+  role      UserRole @default(STUDENT)
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联关系
+  studentCourses    StudentCourse[]
+  teacherCourses    Course[] @map("teacher_courses")
+  coursePackages    CoursePackage[]
+  attendanceRecords AttendanceRecord[]
+  payments          Payment[]
+
+  @@map("users")
+}
+
+// 用户角色枚举
+enum UserRole {
+  ADMIN    // 管理员
+  TEACHER  // 教师
+  STUDENT  // 学生
+}
+
+// 用户状态枚举
+enum UserStatus {
+  ACTIVE   // 活跃
+  INACTIVE // 非活跃
+  SUSPENDED // 暂停
+}
+
+// 课程模型
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  maxStudents Int      @default(20)
+  currentStudents Int  @default(0)
+  status      CourseStatus @default(SCHEDULED)
+  classroom   String?
+  teacherId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  teacher     User @relation("teacher_courses", fields: [teacherId], references: [id])
+  students    StudentCourse[]
+  attendanceRecords AttendanceRecord[]
+
+  @@map("courses")
+}
+
+// 课程状态枚举
+enum CourseStatus {
+  SCHEDULED  // 已安排
+  IN_PROGRESS // 进行中
+  COMPLETED  // 已完成
+  CANCELLED  // 已取消
+}
+
+// 学生课程关联表
+model StudentCourse {
+  id        String   @id @default(cuid())
+  studentId String
+  courseId  String
+  status    EnrollmentStatus @default(ENROLLED)
+  enrolledAt DateTime @default(now())
+
+  // 关联关系
+  student   User   @relation(fields: [studentId], references: [id])
+  course    Course @relation(fields: [courseId], references: [id])
+
+  @@unique([studentId, courseId])
+  @@map("student_courses")
+}
+
+// 报名状态枚举
+enum EnrollmentStatus {
+  ENROLLED   // 已报名
+  ATTENDED   // 已出席
+  ABSENT     // 缺席
+  CANCELLED  // 已取消
+}
+
+// 课包模型
+model CoursePackage {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  totalHours  Int      // 总课时
+  usedHours   Int      @default(0) // 已使用课时
+  price       Decimal  @db.Decimal(10, 2)
+  validDays   Int      // 有效期天数
+  status      PackageStatus @default(ACTIVE)
+  studentId   String
+  purchasedAt DateTime @default(now())
+  expiresAt   DateTime
+
+  // 关联关系
+  student     User @relation(fields: [studentId], references: [id])
+  payments    Payment[]
+
+  @@map("course_packages")
+}
+
+// 课包状态枚举
+enum PackageStatus {
+  ACTIVE    // 有效
+  EXPIRED   // 已过期
+  COMPLETED // 已完成
+  CANCELLED // 已取消
+}
+
+// 出勤记录模型
+model AttendanceRecord {
+  id        String   @id @default(cuid())
+  studentId String
+  courseId  String
+  status    AttendanceStatus
+  notes     String?
+  recordedAt DateTime @default(now())
+
+  // 关联关系
+  student   User   @relation(fields: [studentId], references: [id])
+  course    Course @relation(fields: [courseId], references: [id])
+
+  @@unique([studentId, courseId])
+  @@map("attendance_records")
+}
+
+// 出勤状态枚举
+enum AttendanceStatus {
+  PRESENT   // 出席
+  ABSENT    // 缺席
+  LATE      // 迟到
+  LEAVE     // 请假
+}
+
+// 支付记录模型
+model Payment {
+  id        String   @id @default(cuid())
+  amount    Decimal  @db.Decimal(10, 2)
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  packageId String?
+  studentId String
+  paidAt    DateTime @default(now())
+
+  // 关联关系
+  student   User @relation(fields: [studentId], references: [id])
+  package   CoursePackage? @relation(fields: [packageId], references: [id])
+
+  @@map("payments")
+}
+
+// 支付方式枚举
+enum PaymentMethod {
+  CASH      // 现金
+  WECHAT    // 微信
+  ALIPAY    // 支付宝
+  BANK_TRANSFER // 银行转账
+}
+
+// 支付状态枚举
+enum PaymentStatus {
+  PENDING   // 待支付
+  PAID      // 已支付
+  FAILED    // 支付失败
+  REFUNDED  // 已退款
+}
+
+// 系统设置模型
+model SystemSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  description String?
+
+  @@map("system_settings")
+} 
